@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+pydantic
+python-dotenv
+qdrant-client
+sentence-transformers
+langchain-core
+langchain-google-genai
+langchain-groq
+langchain-openai
+PyMuPDF
+jupyter
+ipykernel
+numpy
+pandas
+plotly

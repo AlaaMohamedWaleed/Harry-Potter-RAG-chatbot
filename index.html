@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Harry Potter RAG</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #100d19;
+      --surface: #1b1628;
+      --surface-2: #241d35;
+      --border: rgba(229, 194, 118, .18);
+      --gold: #dfba66;
+      --gold-bright: #ffe4a4;
+      --text: #f8f1e1;
+      --muted: #aa9ebc;
+      --ink: #2a2117;
+      --green: #73d6a0;
+      --red: #ff8a8a;
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; margin: 0; }
+
+    body {
+      min-height: 100vh;
+      color: var(--text);
+      font-family: "DM Sans", sans-serif;
+      background:
+        radial-gradient(circle at 12% 5%, rgba(90, 59, 143, .45), transparent 25%),
+        radial-gradient(circle at 88% 12%, rgba(31, 73, 109, .38), transparent 23%),
+        var(--bg);
+    }
+
+    .app { min-height: 100vh; display: flex; flex-direction: column; }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      min-height: 72px;
+      padding: 12px 32px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(16, 13, 25, .78);
+      backdrop-filter: blur(12px);
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; min-width: max-content; }
+    .crest {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border: 1px solid rgba(223, 186, 102, .6);
+      border-radius: 50% 50% 45% 45%;
+      color: var(--gold-bright);
+      background: rgba(223, 186, 102, .1);
+      font-size: 1.15rem;
+    }
+    .brand h1 { font: 700 1.2rem "Playfair Display", serif; letter-spacing: .2px; }
+    .brand p { margin-top: 2px; color: var(--muted); font-size: .72rem; }
+
+    .connection { display: flex; align-items: center; gap: 9px; }
+    .connection input {
+      width: 245px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 9px 11px;
+      outline: none;
+      color: var(--text);
+      background: var(--surface);
+      font: .82rem "DM Sans", sans-serif;
+    }
+    .connection input:focus { border-color: var(--gold); }
+
+    button {
+      border: 0;
+      border-radius: 9px;
+      padding: 10px 14px;
+      cursor: pointer;
+      color: var(--text);
+      background: transparent;
+      font: 600 .82rem "DM Sans", sans-serif;
+      transition: transform .15s, border-color .15s, background .15s;
+    }
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: .55; cursor: wait; transform: none; }
+    .ping { border: 1px solid var(--border); }
+    .ping:hover { border-color: var(--gold); color: var(--gold-bright); }
+
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #736a80; }
+    .dot.idle { background: #736a80; }
+    .dot.ok { background: var(--green); box-shadow: 0 0 0 4px rgba(115, 214, 160, .14); }
+    .dot.error { background: var(--red); box-shadow: 0 0 0 4px rgba(255, 138, 138, .14); }
+
+    .workspace {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(310px, .9fr) minmax(380px, 1.1fr);
+      gap: 20px;
+      width: min(1200px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 28px 0;
+    }
+
+    .panel {
+      min-height: 520px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: linear-gradient(150deg, rgba(36, 29, 53, .96), rgba(24, 19, 37, .96));
+      box-shadow: 0 18px 45px rgba(0, 0, 0, .22);
+    }
+
+    .input-panel { display: flex; flex-direction: column; padding: 24px; }
+    .panel-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .eyebrow { color: var(--gold); font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .hint { color: var(--muted); font-size: .75rem; }
+    .input-panel h2, .result-panel h2 { font: 700 1.75rem "Playfair Display", serif; }
+    .input-panel > p { margin: 10px 0 20px; color: var(--muted); line-height: 1.55; font-size: .9rem; }
+
+    textarea {
+      flex: 1;
+      width: 100%;
+      min-height: 200px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 15px;
+      resize: none;
+      outline: none;
+      color: var(--text);
+      background: rgba(13, 10, 21, .42);
+      font: .95rem/1.6 "DM Sans", sans-serif;
+    }
+    textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(223, 186, 102, .1); }
+    textarea::placeholder { color: #82768f; }
+
+    .ask-button {
+      margin-top: 14px;
+      padding: 14px;
+      color: var(--ink);
+      background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+      font-size: .92rem;
+    }
+    .ask-button:hover { box-shadow: 0 7px 20px rgba(223, 186, 102, .22); }
+
+    .examples { margin-top: 20px; }
+    .examples p { margin-bottom: 9px; color: var(--muted); font-size: .75rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .chip { padding: 7px 9px; border: 1px solid var(--border); color: var(--muted); font-size: .72rem; }
+    .chip:hover { border-color: var(--gold); color: var(--gold-bright); }
+
+    .result-panel { display: flex; flex-direction: column; }
+    .result-title { display: flex; justify-content: space-between; align-items: center; padding: 24px 24px 18px; border-bottom: 1px solid var(--border); }
+    .status-text { color: var(--muted); font-size: .75rem; }
+    .result-body { flex: 1; padding: 24px; overflow-y: auto; }
+
+    .empty-state { height: 100%; display: grid; place-content: center; gap: 10px; text-align: center; color: var(--muted); }
+    .empty-icon { font-size: 3rem; opacity: .75; }
+    .empty-state h3 { color: var(--text); font: 600 1.15rem "Playfair Display", serif; }
+    .empty-state p { max-width: 250px; font-size: .85rem; line-height: 1.5; }
+
+    .answer { display: none; animation: rise .35s ease both; }
+    .answer-question { margin-bottom: 16px; color: var(--gold); font-size: .85rem; line-height: 1.5; }
+    .answer-box { padding: 18px; border-radius: 12px; color: var(--ink); background: var(--text); line-height: 1.65; white-space: pre-wrap; }
+    .sources { margin-top: 22px; }
+    .sources h3 { margin-bottom: 10px; color: var(--gold); font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; }
+    .source { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 10px 12px; border-radius: 9px; background: rgba(255, 255, 255, .04); color: var(--muted); font-size: .82rem; }
+    .page-number { min-width: 30px; color: var(--gold-bright); font-weight: 700; }
+
+    .error-bar { display: none; width: min(1200px, calc(100% - 48px)); margin: -12px auto 24px; padding: 12px 15px; border: 1px solid rgba(255, 138, 138, .3); border-radius: 10px; color: #ffc0c0; background: rgba(122, 35, 49, .25); font-size: .85rem; }
+    .error-bar.show { display: block; }
+
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    @media (max-width: 800px) {
+      .topbar { align-items: flex-start; flex-direction: column; padding: 16px 20px; }
+      .connection { width: 100%; }
+      .connection input { flex: 1; width: auto; }
+      .workspace { grid-template-columns: 1fr; width: min(100% - 28px, 680px); padding: 18px 0; }
+      .panel { min-height: auto; }
+      .input-panel { min-height: 440px; }
+      .result-panel { min-height: 420px; }
+      .error-bar { width: min(100% - 28px, 680px); }
+    }
+
+    @media (max-width: 460px) {
+      .connection { flex-wrap: wrap; }
+      .connection input { width: 100%; flex-basis: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="crest">ϟ</div>
+        <div>
+          <h1>Harry Potter RAG</h1>
+          <p>Knowledge from the wizarding library</p>
+        </div>
+      </div>
+
+      <div class="connection">
+        <input id="api-url" value="http://127.0.0.1:8000" aria-label="FastAPI URL" />
+        <button id="health-button" class="ping" type="button">Ping API</button>
+        <span id="health-dot" class="dot idle" title="API status"></span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="panel input-panel">
+        <div class="panel-heading">
+          <span class="eyebrow">Ask the library</span>
+          <span class="hint">Ctrl + Enter to search</span>
+        </div>
+        <h2>Your question</h2>
+        <p>Search the Harry Potter books. The answer will use only the retrieved pages.</p>
+
+        <textarea id="question" placeholder="Who is the Half-Blood Prince?"></textarea>
+        <button id="ask-button" class="ask-button" type="button">Reveal the Answer</button>
+
+        <div class="examples">
+          <p>Try an example</p>
+          <div class="chips">
+            <button class="chip" type="button">What is a Horcrux?</button>
+            <button class="chip" type="button">Who is Sirius Black?</button>
+            <button class="chip" type="button">What is the Triwizard Tournament?</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel result-panel">
+        <div class="result-title">
+          <div>
+            <span class="eyebrow">RAG result</span>
+            <h2>Library answer</h2>
+          </div>
+          <span id="result-status" class="status-text">Waiting for a question</span>
+        </div>
+
+        <div class="result-body">
+          <div id="empty-state" class="empty-state">
+            <div class="empty-icon">✦</div>
+            <h3>The books are ready</h3>
+            <p>Ask a question to retrieve relevant pages and generate an answer.</p>
+          </div>
+
+          <div id="answer-section" class="answer">
+            <p id="answer-question" class="answer-question"></p>
+            <div id="answer-text" class="answer-box"></div>
+            <div id="sources-section" class="sources">
+              <h3>Retrieved sources</h3>
+              <div id="sources-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="error-bar" class="error-bar"></div>
+  </div>
+
+  <script>
+    const apiUrlInput = document.getElementById("api-url");
+    const healthButton = document.getElementById("health-button");
+    const healthDot = document.getElementById("health-dot");
+    const questionInput = document.getElementById("question");
+    const askButton = document.getElementById("ask-button");
+    const resultStatus = document.getElementById("result-status");
+    const emptyState = document.getElementById("empty-state");
+    const answerSection = document.getElementById("answer-section");
+    const answerQuestion = document.getElementById("answer-question");
+    const answerText = document.getElementById("answer-text");
+    const sourcesSection = document.getElementById("sources-section");
+    const sourcesList = document.getElementById("sources-list");
+    const errorBar = document.getElementById("error-bar");
+
+    function getApiUrl() {
+      return apiUrlInput.value.trim().replace(/\/$/, "");
+    }
+
+    function showError(message) {
+      errorBar.textContent = message;
+      errorBar.classList.add("show");
+    }
+
+    function clearError() {
+      errorBar.classList.remove("show");
+    }
+
+    async function typeAnswer(text) {
+      answerText.textContent = "";
+
+      for (const letter of text) {
+        answerText.textContent += letter;
+        await new Promise((resolve) => setTimeout(resolve, 12));
+      }
+    }
+
+    healthButton.addEventListener("click", async () => {
+      clearError();
+      healthButton.textContent = "Checking...";
+      healthButton.disabled = true;
+      healthDot.className = "dot idle";
+
+      try {
+        const response = await fetch(`${getApiUrl()}/health`);
+        const data = await response.json();
+        healthDot.className = data.status === "ok" ? "dot ok" : "dot error";
+        if (data.status !== "ok") showError("The API responded, but its health check was not OK.");
+      } catch {
+        healthDot.className = "dot error";
+        showError("Could not reach the API. Check the URL and make sure FastAPI is running.");
+      }
+
+      healthButton.textContent = "Ping API";
+      healthButton.disabled = false;
+    });
+
+    async function askQuestion() {
+      clearError();
+      const query = questionInput.value.trim();
+      if (!query) {
+        showError("Write a question first.");
+        return;
+      }
+
+      askButton.disabled = true;
+      askButton.textContent = "Searching the books...";
+      resultStatus.textContent = "Retrieving pages...";
+      emptyState.style.display = "none";
+      answerSection.style.display = "block";
+      answerQuestion.textContent = `Question: ${query}`;
+      answerText.textContent = "The library is searching...";
+      sourcesList.innerHTML = "";
+      sourcesSection.style.display = "none";
+
+      try {
+        const response = await fetch(`${getApiUrl()}/query`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, top_k: 3 }),
+        });
+
+        if (!response.ok) throw new Error(`Server error (${response.status})`);
+
+        const data = await response.json();
+        await typeAnswer(data.answer);
+        resultStatus.textContent = `Route: ${data.route}`;
+        sourcesSection.style.display = data.sources.length ? "block" : "none";
+
+        data.sources.forEach((source) => {
+          const item = document.createElement("div");
+          item.className = "source";
+          item.innerHTML = `<span class="page-number">${source.page_number}</span><span>${source.book_name}</span>`;
+          sourcesList.appendChild(item);
+        });
+      } catch (error) {
+        answerSection.style.display = "none";
+        emptyState.style.display = "grid";
+        resultStatus.textContent = "Waiting for a question";
+        showError(error.message || "Could not get an answer from the API.");
+      }
+
+      askButton.disabled = false;
+      askButton.textContent = "Reveal the Answer";
+    }
+
+    askButton.addEventListener("click", askQuestion);
+
+    questionInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && event.ctrlKey) askQuestion();
+    });
+
+    document.querySelectorAll(".chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        questionInput.value = chip.textContent;
+        questionInput.focus();
+      });
+    });
+  </script>
+</body>
+</html>
